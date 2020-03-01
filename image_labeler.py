@@ -1,6 +1,6 @@
-from PyQt5.QtGui import QIcon, QPixmap, QImage, QPainter, QBrush, QColor, QPen
+from PyQt5.QtGui import QIcon, QPixmap, QImage, QPainter, QPen
 from PyQt5.QtWidgets import (QMainWindow, QApplication, QDesktopWidget, QAction, QStatusBar, QHBoxLayout,
-                             QVBoxLayout, QWidget, QLabel, QListWidget, QFileDialog)
+                             QVBoxLayout, QWidget, QLabel, QListWidget, QFileDialog, QMessageBox)
 from PyQt5.QtCore import Qt, QPoint, QRect
 from settings import *
 import sys
@@ -8,44 +8,54 @@ import cv2
 import os
 
 
-class TestRect(QLabel):
+class ImageArea(QLabel):
     def __init__(self):
         super().__init__()
+        self.start_point = QPoint()
+        self.end_point = QPoint()
         self.begin = QPoint()
         self.end = QPoint()
 
     def paintEvent(self, event):
+        super().paintEvent(event)
         qp = QPainter(self)
         pen = QPen(Qt.red)
         qp.setPen(pen)
         qp.drawRect(QRect(self.begin, self.end))
 
     def mousePressEvent(self, event):
+        self.start_point = event.pos()
         self.begin = event.pos()
         self.end = event.pos()
         self.update()
 
     def mouseMoveEvent(self, event):
         self.end = event.pos()
-        print(event.pos())
         self.update()
 
     def mouseReleaseEvent(self, event):
         self.begin = event.pos()
         self.end = event.pos()
+        self.end_point = event.pos()
         self.update()
 
+    def get_square(self, label, image_labels):
+        image_labels.append((label, self.start_point, self.end_point))
 
-class ImageLabeler(QMainWindow):
-    def __init__(self, left_ratio, right_ratio, image_display_size):
+
+class ImageLabelerBase(QMainWindow):
+    def __init__(self, left_ratio, right_ratio, image_display_size, window_title='Image Labeler',
+                 current_image_area=QLabel):
         super().__init__()
         self.left_ratio = left_ratio
         self.right_ratio = right_ratio
         self.image_display_size = image_display_size
         self.current_image = None
+        self.current_image_area = current_image_area
         self.image_paths = {}
         self.setGeometry(50, 50, 1000, 600)
-        self.setWindowTitle('Image Labeler')
+        self.window_title = window_title
+        self.setWindowTitle(self.window_title)
         win_rectangle = self.frameGeometry()
         center_point = QDesktopWidget().availableGeometry().center()
         win_rectangle.moveCenter(center_point)
@@ -53,7 +63,7 @@ class ImageLabeler(QMainWindow):
         self.setStyleSheet('QPushButton:!hover {color: red}')
         self.tools = self.addToolBar('Tools')
         self.tool_items = setup_toolbar(self)
-        self.left_widgets = {'Image': QLabel()}
+        self.left_widgets = {'Image': self.current_image_area()}
         self.right_widgets = {'Label Title': QLabel('Label List'), 'Label List': QListWidget(),
                               'Photo Title': QLabel('Photo List'), 'Photo List': QListWidget()}
         self.setStatusBar(QStatusBar(self))
@@ -68,16 +78,17 @@ class ImageLabeler(QMainWindow):
 
     def adjust_tool_bar(self):
         self.tools.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
-        for label, icon_file, widget_method, status_tip, key in self.tool_items.values():
+        for label, icon_file, widget_method, status_tip, key, check in self.tool_items.values():
             action = QAction(QIcon(f'Icons/{icon_file}'), label, self)
             action.setStatusTip(status_tip)
             action.setShortcut(key)
+            if check:
+                action.setCheckable(True)
             if label == 'Delete':
                 action.setShortcut('Backspace')
             action.triggered.connect(widget_method)
             self.tools.addAction(action)
             self.tools.addSeparator()
-        self.tools.addSeparator()
 
     def adjust_layouts(self):
         self.main_layout.addLayout(self.left_layout, self.left_ratio)
@@ -95,8 +106,9 @@ class ImageLabeler(QMainWindow):
 
     def display_selection(self):
         current_selection = self.right_widgets['Photo List'].currentRow()
-        image_path = [path for path in self.image_paths.values()][current_selection]
-        self.set_current_display(image_path)
+        if current_selection > 0:
+            image_path = [path for path in self.image_paths.values()][current_selection]
+            self.set_current_display(image_path)
 
     def set_current_display(self, image_path):
         try:
@@ -122,14 +134,25 @@ class ImageLabeler(QMainWindow):
     def upload_folder(self):
         file_dialog = QFileDialog()
         folder_name = file_dialog.getExistingDirectory()
-        for file_name in os.listdir(folder_name):
-            if not file_name.startswith('.'):
-                photo_name = file_name.split('/')[-1]
-                self.right_widgets['Photo List'].addItem(photo_name)
-                self.image_paths[photo_name] = f'{folder_name}/{file_name}'
+        if folder_name:
+            for file_name in os.listdir(folder_name):
+                if not file_name.startswith('.'):
+                    photo_name = file_name.split('/')[-1]
+                    self.right_widgets['Photo List'].addItem(photo_name)
+                    self.image_paths[photo_name] = f'{folder_name}/{file_name}'
 
-    def draw_rectangle(self):
-        pass
+    def edit_mode(self):
+        if self.windowTitle() == 'Image Labeler':
+            self.setWindowTitle('Image Labeler(Editor Mode)')
+            self.left_layout.removeWidget(self.left_widgets['Image'])
+            self.left_widgets['Image'] = ImageArea()
+            self.left_layout.addWidget(self.left_widgets['Image'])
+        else:
+            self.setWindowTitle('Image Labeler')
+            self.left_layout.removeWidget(self.left_widgets['Image'])
+            self.left_widgets['Image'] = QLabel()
+            self.left_layout.addWidget(self.left_widgets['Image'])
+        self.display_selection()
 
     def save_changes(self):
         pass
@@ -149,5 +172,5 @@ class ImageLabeler(QMainWindow):
 
 if __name__ == '__main__':
     test = QApplication(sys.argv)
-    test_window = ImageLabeler(6, 4, (700, 500))
+    test_window = ImageLabelerBase(6, 4, (700, 500))
     sys.exit(test.exec_())
