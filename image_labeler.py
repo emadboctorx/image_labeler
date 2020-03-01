@@ -53,7 +53,7 @@ class ImageLabeler(QMainWindow):
         self.setStyleSheet('QPushButton:!hover {color: red}')
         self.tools = self.addToolBar('Tools')
         self.tool_items = setup_toolbar(self)
-        self.left_widgets = {'Image': TestRect()}
+        self.left_widgets = {'Image': QLabel()}
         self.right_widgets = {'Label Title': QLabel('Label List'), 'Label List': QListWidget(),
                               'Photo Title': QLabel('Photo List'), 'Photo List': QListWidget()}
         self.setStatusBar(QStatusBar(self))
