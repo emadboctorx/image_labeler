@@ -1,12 +1,39 @@
-import sys
-
-import cv2
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon, QPixmap, QImage
+from PyQt5.QtGui import QIcon, QPixmap, QImage, QPainter, QBrush, QColor, QPen
 from PyQt5.QtWidgets import (QMainWindow, QApplication, QDesktopWidget, QAction, QStatusBar, QHBoxLayout,
-                             QVBoxLayout, QWidget, QFileDialog, QLabel, QListWidget)
-
+                             QVBoxLayout, QWidget, QLabel, QListWidget, QFileDialog)
+from PyQt5.QtCore import Qt, QPoint, QRect
 from settings import *
+import sys
+import cv2
+import os
+
+
+class TestRect(QLabel):
+    def __init__(self):
+        super().__init__()
+        self.begin = QPoint()
+        self.end = QPoint()
+
+    def paintEvent(self, event):
+        qp = QPainter(self)
+        pen = QPen(Qt.red)
+        qp.setPen(pen)
+        qp.drawRect(QRect(self.begin, self.end))
+
+    def mousePressEvent(self, event):
+        self.begin = event.pos()
+        self.end = event.pos()
+        self.update()
+
+    def mouseMoveEvent(self, event):
+        self.end = event.pos()
+        print(event.pos())
+        self.update()
+
+    def mouseReleaseEvent(self, event):
+        self.begin = event.pos()
+        self.end = event.pos()
+        self.update()
 
 
 class ImageLabeler(QMainWindow):
@@ -26,7 +53,7 @@ class ImageLabeler(QMainWindow):
         self.setStyleSheet('QPushButton:!hover {color: red}')
         self.tools = self.addToolBar('Tools')
         self.tool_items = setup_toolbar(self)
-        self.left_widgets = {'Image': QLabel('Image')}
+        self.left_widgets = {'Image': TestRect()}
         self.right_widgets = {'Label Title': QLabel('Label List'), 'Label List': QListWidget(),
                               'Photo Title': QLabel('Photo List'), 'Photo List': QListWidget()}
         self.setStatusBar(QStatusBar(self))
@@ -78,8 +105,8 @@ class ImageLabeler(QMainWindow):
             height, width = self.image_display_size
             self.current_image = QImage(resized, height, width, QImage.Format_RGB888)
             self.left_widgets['Image'].setPixmap(QPixmap(self.current_image))
-        except (cv2.error, FileNotFoundError):
-            print(f'Image {image_path} could not be loaded')
+        except (cv2.error, FileNotFoundError) as e:
+            print(f'Image {image_path} could not be loaded: {e}')
 
     def upload_photos(self):
         file_dialog = QFileDialog()
@@ -93,7 +120,13 @@ class ImageLabeler(QMainWindow):
         pass
 
     def upload_folder(self):
-        pass
+        file_dialog = QFileDialog()
+        folder_name = file_dialog.getExistingDirectory()
+        for file_name in os.listdir(folder_name):
+            if not file_name.startswith('.'):
+                photo_name = file_name.split('/')[-1]
+                self.right_widgets['Photo List'].addItem(photo_name)
+                self.image_paths[photo_name] = f'{folder_name}/{file_name}'
 
     def draw_rectangle(self):
         pass
