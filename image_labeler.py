@@ -1,6 +1,6 @@
 from PyQt5.QtGui import QIcon, QPixmap, QImage, QPainter, QPen
 from PyQt5.QtWidgets import (QMainWindow, QApplication, QDesktopWidget, QAction, QStatusBar, QHBoxLayout,
-                             QVBoxLayout, QWidget, QLabel, QListWidget, QFileDialog, QMessageBox)
+                             QVBoxLayout, QWidget, QLabel, QListWidget, QFileDialog)
 from PyQt5.QtCore import Qt, QPoint, QRect
 from settings import *
 import sys
@@ -9,8 +9,9 @@ import os
 
 
 class ImageArea(QLabel):
-    def __init__(self):
+    def __init__(self, main_window=None):
         super().__init__()
+        self.main_window = main_window
         self.start_point = QPoint()
         self.end_point = QPoint()
         self.begin = QPoint()
@@ -37,9 +38,13 @@ class ImageArea(QLabel):
         self.begin = event.pos()
         self.end = event.pos()
         self.end_point = event.pos()
+        x1, y1, x2, y2 = (self.start_point.x(), self.start_point.y(),
+                          self.end_point.x(), self.end_point.y())
+        if self.main_window:
+            self.main_window.statusBar().showMessage(f'Start: {x1}, {y1}, End: {x2}, {y2}')
         self.update()
 
-    def get_square(self, label, image_labels):
+    def update_labels(self, label, image_labels):
         image_labels.append((label, self.start_point, self.end_point))
 
 
@@ -54,6 +59,9 @@ class ImageLabelerBase(QMainWindow):
         self.current_image_area = current_image_area
         self.image_paths = {}
         self.setGeometry(50, 50, 1000, 600)
+        self.setWindowFlags(Qt.CustomizeWindowHint |
+                            Qt.WindowCloseButtonHint |
+                            Qt.WindowMinimizeButtonHint)
         self.window_title = window_title
         self.setWindowTitle(self.window_title)
         win_rectangle = self.frameGeometry()
@@ -78,6 +86,8 @@ class ImageLabelerBase(QMainWindow):
 
     def adjust_tool_bar(self):
         self.tools.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        if sys.platform == 'darwin':
+            self.setUnifiedTitleAndToolBarOnMac(True)
         for label, icon_file, widget_method, status_tip, key, check in self.tool_items.values():
             action = QAction(QIcon(f'Icons/{icon_file}'), label, self)
             action.setStatusTip(status_tip)
@@ -104,11 +114,16 @@ class ImageLabelerBase(QMainWindow):
         self.right_widgets['Photo List'].clicked.connect(self.display_selection)
         self.right_widgets['Photo List'].selectionModel().currentChanged.connect(self.display_selection)
 
-    def display_selection(self):
+    def get_current_selection(self):
         current_selection = self.right_widgets['Photo List'].currentRow()
-        if current_selection > 0:
-            image_path = [path for path in self.image_paths.values()][current_selection]
-            self.set_current_display(image_path)
+        if current_selection >= 0:
+            return [path for path in self.image_paths.values()][current_selection]
+
+    def display_selection(self):
+        image_path = self.get_current_selection()
+        self.set_current_display(image_path)
+        if image_path:
+            self.right_widgets['Label Title'].setText(f'Label List of: {image_path.split("/")[-1]}')
 
     def set_current_display(self, image_path):
         try:
@@ -141,17 +156,18 @@ class ImageLabelerBase(QMainWindow):
                     self.right_widgets['Photo List'].addItem(photo_name)
                     self.image_paths[photo_name] = f'{folder_name}/{file_name}'
 
+    def switch_editor(self, image_area):
+        self.left_layout.removeWidget(self.left_widgets['Image'])
+        self.left_widgets['Image'] = image_area(self)
+        self.left_layout.addWidget(self.left_widgets['Image'])
+
     def edit_mode(self):
         if self.windowTitle() == 'Image Labeler':
             self.setWindowTitle('Image Labeler(Editor Mode)')
-            self.left_layout.removeWidget(self.left_widgets['Image'])
-            self.left_widgets['Image'] = ImageArea()
-            self.left_layout.addWidget(self.left_widgets['Image'])
+            self.switch_editor(ImageArea)
         else:
             self.setWindowTitle('Image Labeler')
-            self.left_layout.removeWidget(self.left_widgets['Image'])
-            self.left_widgets['Image'] = QLabel()
-            self.left_layout.addWidget(self.left_widgets['Image'])
+            self.switch_editor(QLabel)
         self.display_selection()
 
     def save_changes(self):
