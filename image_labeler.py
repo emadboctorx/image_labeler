@@ -38,7 +38,7 @@ class ImageEditorArea(RegularImageArea):
         self.end = QPoint()
 
     def paintEvent(self, event):
-        RegularImageArea.paintEvent(self, event)
+        super().paintEvent(event)
         qp = QPainter(self)
         pen = QPen(Qt.red)
         qp.setPen(pen)
@@ -69,16 +69,13 @@ class ImageEditorArea(RegularImageArea):
 
 
 class ImageLabelerBase(QMainWindow):
-    def __init__(self, left_ratio, right_ratio, image_display_size, window_title='Image Labeler',
-                 current_image_area=RegularImageArea):
+    def __init__(self, left_ratio, right_ratio, window_title='Image Labeler', current_image_area=RegularImageArea):
         super().__init__()
         self.left_ratio = left_ratio
         self.right_ratio = right_ratio
-        self.image_display_size = image_display_size
         self.current_image = None
         self.current_image_area = current_image_area
         self.image_paths = {}
-        self.setGeometry(50, 50, 1000, 600)
         self.window_title = window_title
         self.setWindowTitle(self.window_title)
         win_rectangle = self.frameGeometry()
@@ -192,5 +189,5 @@ class ImageLabelerBase(QMainWindow):
 
 if __name__ == '__main__':
     test = QApplication(sys.argv)
-    test_window = ImageLabelerBase(6, 4, (700, 500))
+    test_window = ImageLabelerBase(6, 4)
     sys.exit(test.exec_())

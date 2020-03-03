@@ -1,63 +1,77 @@
-from PyQt5.QtWidgets import *
+from PyQt5.QtGui import QIcon, QPixmap, QPainter, QPen
+from PyQt5.QtWidgets import (QMainWindow, QApplication, QDesktopWidget, QAction, QStatusBar, QHBoxLayout,
+                             QVBoxLayout, QWidget, QLabel, QListWidget, QFileDialog, QFrame, QSizePolicy,
+                             QDockWidget)
+from PyQt5.QtCore import Qt, QPoint, QRect, QSize
+from settings import *
 import sys
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+import os
 
 
-class Label(QLabel):
-    def __init__(self, img):
-        super(Label, self).__init__()
-        self.setFrameStyle(QFrame.StyledPanel)
-        self.pixmap = QPixmap(img)
-        self.start_point = QPoint()
-        self.end_point = QPoint()
-        self.begin = QPoint()
-        self.end = QPoint()
+class PixmapWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._pixmap = None
+
+    def sizeHint(self):
+        if self._pixmap:
+            return self._pixmap.size()
+        else:
+            return QSize()
+
+    def setPixmap(self, pixmap):
+        self._pixmap = pixmap
+        self.update()
 
     def paintEvent(self, event):
+        painter = QPainter(self)
         super().paintEvent(event)
-        qp = QPainter(self)
-        size = self.size()
-        point = QPoint(0,0)
-        scaledPix = self.pixmap.scaled(size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        point.setX((size.width() - scaledPix.width())/2)
-        point.setY((size.height() - scaledPix.height())/2)
-        qp.drawPixmap(point, scaledPix)
-        pen = QPen(Qt.red)
-        qp.setPen(pen)
-        qp.drawRect(QRect(self.begin, self.end))
-
-    def mousePressEvent(self, event):
-        self.start_point = event.pos()
-        self.begin = event.pos()
-        self.end = event.pos()
-        self.update()
-
-    def mouseMoveEvent(self, event):
-        self.end = event.pos()
-        self.update()
-
-    def mouseReleaseEvent(self, event):
-        self.begin = event.pos()
-        self.end = event.pos()
-        self.end_point = event.pos()
-        self.update()
+        if self._pixmap:
+            size = self._pixmap.size().scaled(self.size(), Qt.KeepAspectRatio)
+            offset = (self.size() - size)/2
+            rect = QRect(offset.width(), offset.height(), size.width(), size.height())
+            painter.drawPixmap(rect, self._pixmap)
 
 
-class Main(QWidget):
-    def __init__(self):
-        super(Main, self).__init__()
-        layout = QH
-        label = Label(r'test.jpg')
-        layout.addWidget(label)
-        layout.setRowStretch(0,1)
-        layout.setColumnStretch(0,1)
+class TestWindow(QMainWindow):
+    def __init__(self, left_ratio, right_ratio, window_title):
+        super().__init__()
+        #self.left_ratio = left_ratio    <--- not needed since image and lists
+        #self.right_ratio = right_ratio  <--- are not sharing a layout anymore
 
-        self.setLayout(layout)
+        ...
+        self.dock_widgets = []
+        # use PixmapWidget instead of QLabel for showing image
+        # refactor dictionary for storing lists to make adding DockWidgets easier
+        self.left_widgets = {'Image': PixmapWidget()}
+        self.right_widgets = {'List1': QListWidget(),
+                              'List2': QListWidget()}
+        self.central_widget = QWidget(self)
+        # self.main_layout = QHBoxLayout()  <-- not needed anymore
+        self.left_layout = QVBoxLayout()
+
+        self.adjust_widgets()
+        self.adjust_layouts()
         self.show()
 
+    def adjust_layouts(self):
+        self.central_widget.setLayout(self.left_layout)
+        self.setCentralWidget(self.central_widget)
 
-if __name__ =="__main__":
+    def adjust_widgets(self):
+        self.left_layout.addWidget(self.left_widgets['Image'])
+        self.left_widgets['Image'].setPixmap(QPixmap('test.jpg').scaled(
+            500, 400, Qt.IgnoreAspectRatio, Qt.SmoothTransformation))
+        for text, widget in self.right_widgets.items():
+            dock_widget = QDockWidget(text)
+            dock_widget.setFeatures(QDockWidget.NoDockWidgetFeatures)
+            dock_widget.setWidget(widget)
+            self.addDockWidget(Qt.RightDockWidgetArea, dock_widget)
+            self.dock_widgets.append(dock_widget)
+
+
+if __name__ == '__main__':
     test = QApplication(sys.argv)
-    test_window = Main()
+    win = TestWindow(6, 4, 't')
     sys.exit(test.exec_())
