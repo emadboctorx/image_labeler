@@ -103,7 +103,7 @@ class ImageLabelerBase(QMainWindow):
         if sys.platform == 'darwin':
             self.setUnifiedTitleAndToolBarOnMac(True)
         for label, icon_file, widget_method, status_tip, key, check in self.tool_items.values():
-            action = QAction(QIcon(f'Icons/{icon_file}'), label, self)
+            action = QAction(QIcon(f'../Icons/{icon_file}'), label, self)
             action.setStatusTip(status_tip)
             action.setShortcut(key)
             if check:
