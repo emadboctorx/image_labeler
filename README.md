@@ -8,7 +8,7 @@
 
 > labelpix is a graphical image labeling interface for drawing bounding boxes.
 
-### 🏠 [Homepage](https://github.com/emadboctorx/labelpix)
+![Preview](https://github.com/emadboctorx/labelpix/blob/master/Icons/prev.png)
 
 ## Install
 
