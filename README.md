@@ -10,15 +10,10 @@
 
 ![Preview](https://github.com/emadboctorx/labelpix/blob/master/Icons/prev.png)
 
-## Install
-
-```sh
-pip install labelpix
-```
-
 ## Usage
 
 ```sh
+
 python labelpix.py
 ```
 
