@@ -61,12 +61,23 @@ class ImageEditorArea(RegularImageArea):
         self.end_point = event.pos()
         x1, y1, x2, y2 = (self.start_point.x(), self.start_point.y(),
                           self.end_point.x(), self.end_point.y())
-        if self.main_window:
-            self.main_window.statusBar().showMessage(f'Start: {x1}, {y1}, End: {x2}, {y2}')
+        self.main_window.statusBar().showMessage(f'Start: {x1}, {y1}, End: {x2}, {y2}')
         self.update()
+        if self.current_image:
+            img_name = self.current_image.split('/')[-1]
+            self.update_session_data(img_name, x1, y1, x2, y2)
+        print(self.main_window.session_data)
 
-    def update_labels(self, label, image_labels):
-        image_labels.append((label, self.start_point, self.end_point))
+    def update_session_data(self, image_name, x1, y1, x2, y2):
+        current_label_index = self.main_window.get_current_selection('slabels')
+        if current_label_index is None or current_label_index < 0:
+            return
+        if image_name not in self.main_window.session_data:
+            self.main_window.session_data[image_name] = []
+        current_image_size = self.width(), self.height()
+        object_name = self.main_window.right_widgets['Session Labels'].item(current_label_index).text()
+        self.main_window.session_data[image_name].append(
+            [current_image_size, (current_label_index, object_name), (x1, y1, x2, y2)])
 
 
 class ImageLabelerBase(QMainWindow):
@@ -76,9 +87,9 @@ class ImageLabelerBase(QMainWindow):
         self.left_ratio = left_ratio
         self.right_ratio = right_ratio
         self.current_image = None
-        self.current_list = None
         self.current_image_area = current_image_area
         self.image_paths = []
+        self.session_data = {}
         self.window_title = window_title
         self.setWindowTitle(self.window_title)
         win_rectangle = self.frameGeometry()
@@ -88,12 +99,12 @@ class ImageLabelerBase(QMainWindow):
         self.setStyleSheet('QPushButton:!hover {color: orange} QLineEdit:!hover {color: orange}')
         self.tools = self.addToolBar('Tools')
         self.tool_items = setup_toolbar(self)
-        self.left_widgets = {'Image': self.current_image_area('', self)}
         self.top_right_widgets = {'Edit Line': (QLineEdit(), None),
                                   'Add': (QPushButton('Add'), self.add_session_label)}
         self.right_widgets = {'Session Labels': QListWidget(),
                               'Label Title': QLabel('Image labels'), 'Image Label List': QListWidget(),
                               'Photo Title': QLabel('Photo List'), 'Photo List': QListWidget()}
+        self.left_widgets = {'Image': self.current_image_area('', self)}
         self.setStatusBar(QStatusBar(self))
         self.adjust_tool_bar()
         self.central_widget = QWidget(self)
