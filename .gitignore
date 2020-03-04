@@ -2,4 +2,8 @@
 *.DS_Store
 __pycache__/
 *.swp
+build/
+dist/
+*.egg-info/
+
 
