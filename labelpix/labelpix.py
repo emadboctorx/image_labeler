@@ -78,7 +78,7 @@ class ImageLabelerBase(QMainWindow):
         self.current_image = None
         self.current_list = None
         self.current_image_area = current_image_area
-        self.image_paths = {}
+        self.image_paths = []
         self.window_title = window_title
         self.setWindowTitle(self.window_title)
         win_rectangle = self.frameGeometry()
@@ -148,7 +148,7 @@ class ImageLabelerBase(QMainWindow):
         if display_list == 'photo':
             current_selection = self.right_widgets['Photo List'].currentRow()
             if current_selection >= 0:
-                return [path for path in self.image_paths.values()][current_selection]
+                return self.image_paths[current_selection]
             self.right_widgets['Photo List'].selectionModel().clear()
         if display_list == 'slabels':
             current_selection = self.right_widgets['Session Labels'].currentRow()
@@ -164,8 +164,11 @@ class ImageLabelerBase(QMainWindow):
         file_names, _ = file_dialog.getOpenFileNames(self, 'Upload Photos')
         for file_name in file_names:
             photo_name = file_name.split('/')[-1]
-            self.right_widgets['Photo List'].addItem(photo_name)
-            self.image_paths[photo_name] = file_name
+            item = QListWidgetItem(photo_name)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Unchecked)
+            self.right_widgets['Photo List'].addItem(item)
+            self.image_paths.append(file_name)
 
     def upload_vid(self):
         pass
@@ -181,7 +184,7 @@ class ImageLabelerBase(QMainWindow):
                     item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
                     item.setCheckState(Qt.Unchecked)
                     self.right_widgets['Photo List'].addItem(item)
-                    self.image_paths[photo_name] = f'{folder_name}/{file_name}'
+                    self.image_paths.append(f'{folder_name}/{file_name}')
 
     def switch_editor(self, image_area):
         self.left_layout.removeWidget(self.left_widgets['Image'])
@@ -207,12 +210,13 @@ class ImageLabelerBase(QMainWindow):
                            if item.checkState() == Qt.Checked]
         return checked_indexes
 
-    @staticmethod
-    def delete_list_selections(checked_indexes, widget_list):
+    def delete_list_selections(self, checked_indexes, widget_list):
         if checked_indexes:
             for item in reversed(checked_indexes):
                 try:
                     widget_list.takeItem(item)
+                    if widget_list is self.right_widgets['Photo List']:
+                        del self.image_paths[item]
                 except IndexError:
                     print(f'Failed to delete {widget_list.item(item)}')
 
