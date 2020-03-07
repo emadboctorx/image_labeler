@@ -2,7 +2,7 @@ from PyQt5.QtGui import QIcon, QPixmap, QPainter, QPen
 from PyQt5.QtWidgets import (QMainWindow, QApplication, QDesktopWidget, QAction, QStatusBar, QHBoxLayout,
                              QVBoxLayout, QWidget, QLabel, QListWidget, QFileDialog, QFrame,
                              QLineEdit, QListWidgetItem, QDockWidget)
-from PyQt5.QtCore import Qt, QPoint, QRect, QSize
+from PyQt5.QtCore import Qt, QPoint, QRect
 from settings import *
 import cv2
 import sys
@@ -24,12 +24,6 @@ class RegularImageArea(QLabel):
             scaled_image = QPixmap(self.current_image).scaled(
                 current_size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
             painter.drawPixmap(origin, scaled_image)
-
-    def sizeHint(self):
-        if self.current_image:
-            return self.size()
-        else:
-            return QSize()
 
     def switch_image(self, img):
         self.current_image = img
@@ -62,6 +56,16 @@ class ImageEditorArea(RegularImageArea):
         self.end = event.pos()
         self.update()
 
+    @staticmethod
+    def calculate_ratios(x1, y1, x2, y2, width, height):
+        box_width = abs(x2 - x1)
+        box_height = abs(y2 - y1)
+        b_x = 1 - ((width - min(x1, x2) + (box_width / 2)) / width)
+        b_y = 1 - ((height - min(y1, y2) + (box_height / 2)) / height)
+        b_w = box_width / width
+        b_h = box_height / height
+        return b_x, b_y, b_w, b_h
+
     def mouseReleaseEvent(self, event):
         self.begin = event.pos()
         self.end = event.pos()
@@ -74,7 +78,12 @@ class ImageEditorArea(RegularImageArea):
             img_name, img_dir = self.current_image.split('/')[-1], '/'.join(self.current_image.split('/')[:-1])
             # labeled = cv2.imread(self.current_image)
             # labeled = cv2.resize(labeled, (self.width(), self.height()))
-            # labeled = cv2.rectangle(labeled, (x1, y1), (x2, y2), (0, 0, 255), 1)
+            # xx, yy, ww, hh = self.calculate_ratios(x1, y1, x2, y2, self.width(), self.height())
+            # w, h = ww * self.width(), hh * self.height()
+            # x, y = xx * self.width() + (w / 2), yy * self.height() + (h / 2)
+            # labeled = cv2.rectangle(labeled, (int(x), int(y)), (int(x + w), int(y + h)), (0, 0, 255), 1)
+            # cv2.imshow('x', labeled)
+            # cv2.waitKey(0)
             # img_name = (f'{img_dir}/labeled-{img_name}'
             #             if 'labeled' not in self.current_image else self.current_image)
             # cv2.imwrite(img_name, labeled)
@@ -94,11 +103,8 @@ class ImageEditorArea(RegularImageArea):
 
 
 class ImageLabelerBase(QMainWindow):
-    def __init__(self, left_ratio, right_ratio, window_title='Image Labeler',
-                 current_image_area=RegularImageArea):
+    def __init__(self, window_title='Image Labeler', current_image_area=RegularImageArea):
         super().__init__()
-        self.left_ratio = left_ratio
-        self.right_ratio = right_ratio
         self.current_image = None
         self.current_image_area = current_image_area
         self.image_paths = []
@@ -143,7 +149,7 @@ class ImageLabelerBase(QMainWindow):
             self.tools.addSeparator()
 
     def adjust_layouts(self):
-        self.main_layout.addLayout(self.left_layout, self.left_ratio)
+        self.main_layout.addLayout(self.left_layout)
         self.central_widget.setLayout(self.main_layout)
         self.setCentralWidget(self.central_widget)
 
@@ -275,5 +281,5 @@ class ImageLabelerBase(QMainWindow):
 
 if __name__ == '__main__':
     test = QApplication(sys.argv)
-    test_window = ImageLabelerBase(6, 4)
+    test_window = ImageLabelerBase()
     sys.exit(test.exec_())
