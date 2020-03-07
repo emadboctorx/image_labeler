@@ -36,14 +36,15 @@ class RegularImageArea(QLabel):
         self.current_image = img
         self.repaint()
 
-    def ratios_to_coordinates(self, bx, by, bw, bh):
-        w, h = bw * self.width(), bh * self.height()
-        x, y = bx * self.width() + (w / 2), by * self.height() + (h / 2)
+    @staticmethod
+    def ratios_to_coordinates(bx, by, bw, bh, width, height):
+        w, h = bw * width, bh * height
+        x, y = bx * width + (w / 2), by * height + (h / 2)
         return x, y, w, h
 
     def draw_box(self, x, y, w, h):
         labeled = cv2.imread(self.current_image)
-        labeled = cv2.resize(labeled, (self.width(), self.height()))
+        # labeled = cv2.resize(labeled, (self.width(), self.height()))
         labeled = cv2.rectangle(labeled, (int(x), int(y)), (int(x + w), int(y + h)), (0, 0, 255), 1)
         return labeled
 
@@ -109,10 +110,12 @@ class ImageEditorArea(RegularImageArea):
         self.main_window.session_data[image_name].append(data)
         self.main_window.add_to_list(f'{object_name} {bx} {by} {bw} {bh}',
                                      self.main_window.right_widgets['Image Label List'])
-        xx, yy, ww, hh = self.ratios_to_coordinates(bx, by, bw, bh)
+        height, width = cv2.imread(self.current_image).shape[:-1]
+        xx, yy, ww, hh = self.ratios_to_coordinates(bx, by, bw, bh, width, height)
+        print(xx, yy, ww, hh)
         boxed = self.draw_box(xx, yy, ww, hh)
-        cv2.imshow('boxed', boxed)
-        cv2.waitKey(0)
+        # cv2.imshow('boxed', boxed)
+        # cv2.waitKey(0)
 
 
 class ImageLabelerBase(QMainWindow):
