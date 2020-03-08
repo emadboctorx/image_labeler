@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (QMainWindow, QApplication, QDesktopWidget, QAction,
                              QLineEdit, QListWidgetItem, QDockWidget)
 from PyQt5.QtCore import Qt, QPoint, QRect
 from settings import *
+import pandas as pd
 import cv2
 import sys
 import os
@@ -16,6 +17,10 @@ class RegularImageArea(QLabel):
         self.current_image = current_image
         self.main_window = main_window
 
+    def get_image_names(self):
+        full_name = self.current_image.split('/')
+        return '/'.join(full_name[:-1]), full_name[-1].replace('temp-', '')
+
     def paintEvent(self, event):
         painter = QPainter(self)
         current_size = self.size()
@@ -25,16 +30,19 @@ class RegularImageArea(QLabel):
                 current_size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
             painter.drawPixmap(origin, scaled_image)
 
-    def get_current_labeled_name(self):
-        img_name, img_dir = self.current_image.split('/')[-1], '/'.join(
-            self.current_image.split('/')[:-1])
-        labeled_img_name = (f'{img_dir}/labeled-{img_name}'
-                            if 'labeled' not in self.current_image else self.current_image)
-        return labeled_img_name
-
     def switch_image(self, img):
         self.current_image = img
         self.repaint()
+
+    @staticmethod
+    def calculate_ratios(x1, y1, x2, y2, width, height):
+        box_width = abs(x2 - x1)
+        box_height = abs(y2 - y1)
+        bx = 1 - ((width - min(x1, x2) + (box_width / 2)) / width)
+        by = 1 - ((height - min(y1, y2) + (box_height / 2)) / height)
+        bw = box_width / width
+        bh = box_height / height
+        return bx, by, bw, bh
 
     @staticmethod
     def ratios_to_coordinates(bx, by, bw, bh, width, height):
@@ -42,11 +50,16 @@ class RegularImageArea(QLabel):
         x, y = bx * width + (w / 2), by * height + (h / 2)
         return x, y, w, h
 
-    def draw_box(self, x, y, w, h):
-        labeled = cv2.imread(self.current_image)
-        # labeled = cv2.resize(labeled, (self.width(), self.height()))
-        labeled = cv2.rectangle(labeled, (int(x), int(y)), (int(x + w), int(y + h)), (0, 0, 255), 1)
-        return labeled
+    def draw_boxes(self, ratios):
+        img_dir, img_name = self.get_image_names()
+        to_label = cv2.imread(self.current_image)
+        to_label = cv2.resize(to_label, (self.width(), self.height()))
+        for bx, by, bw, bh in ratios:
+            x, y, w, h = self.ratios_to_coordinates(bx, by, bw, bh, self.width(), self.height())
+            to_label = cv2.rectangle(to_label, (int(x), int(y)), (int(x + w), int(y + h)), (0, 0, 255), 1)
+        temp = f'{img_dir}/temp-{img_name}'
+        cv2.imwrite(f'{img_dir}/temp-{img_name}', to_label)
+        self.switch_image(temp)
 
 
 class ImageEditorArea(RegularImageArea):
@@ -75,16 +88,6 @@ class ImageEditorArea(RegularImageArea):
         self.end = event.pos()
         self.update()
 
-    @staticmethod
-    def calculate_ratios(x1, y1, x2, y2, width, height):
-        box_width = abs(x2 - x1)
-        box_height = abs(y2 - y1)
-        bx = 1 - ((width - min(x1, x2) + (box_width / 2)) / width)
-        by = 1 - ((height - min(y1, y2) + (box_height / 2)) / height)
-        bw = box_width / width
-        bh = box_height / height
-        return bx, by, bw, bh
-
     def mouseReleaseEvent(self, event):
         self.begin = event.pos()
         self.end = event.pos()
@@ -94,28 +97,19 @@ class ImageEditorArea(RegularImageArea):
         self.main_window.statusBar().showMessage(f'Start: {x1}, {y1}, End: {x2}, {y2}')
         self.update()
         if self.current_image:
-            img_name, img_dir = self.current_image.split('/')[-1], '/'.join(self.current_image.split('/')[:-1])
-            self.update_session_data(img_name, x1, y1, x2, y2)
+            self.update_session_data(x1, y1, x2, y2)
 
-    def update_session_data(self, image_name, x1, y1, x2, y2):
+    def update_session_data(self, x1, y1, x2, y2):
         current_label_index = self.main_window.get_current_selection('slabels')
         if current_label_index is None or current_label_index < 0:
             return
-        if image_name not in self.main_window.session_data:
-            self.main_window.session_data[image_name] = []
         window_width, window_height = self.width(), self.height()
         object_name = self.main_window.right_widgets['Session Labels'].item(current_label_index).text()
         bx, by, bw, bh = self.calculate_ratios(x1, y1, x2, y2, window_width, window_height)
-        data = [(object_name, current_label_index), bx, by, bw, bh]
-        self.main_window.session_data[image_name].append(data)
-        self.main_window.add_to_list(f'{object_name} {bx} {by} {bw} {bh}',
-                                     self.main_window.right_widgets['Image Label List'])
-        height, width = cv2.imread(self.current_image).shape[:-1]
-        xx, yy, ww, hh = self.ratios_to_coordinates(bx, by, bw, bh, width, height)
-        print(xx, yy, ww, hh)
-        boxed = self.draw_box(xx, yy, ww, hh)
-        # cv2.imshow('boxed', boxed)
-        # cv2.waitKey(0)
+        data = [[self.get_image_names()[1], object_name, current_label_index, bx, by, bw, bh]]
+        to_add = pd.DataFrame(data, columns=self.main_window.session_data.columns)
+        self.main_window.session_data = pd.concat([self.main_window.session_data, to_add])
+        self.main_window.add_to_list(f'{data}', self.main_window.right_widgets['Image Label List'])
 
 
 class ImageLabelerBase(QMainWindow):
@@ -124,7 +118,8 @@ class ImageLabelerBase(QMainWindow):
         self.current_image = None
         self.current_image_area = current_image_area
         self.image_paths = []
-        self.session_data = {}
+        self.session_data = pd.DataFrame(
+            columns=['Image', 'Object Name', 'Object Index', 'bx', 'by', 'bw', 'bh'])
         self.window_title = window_title
         self.setWindowTitle(self.window_title)
         win_rectangle = self.frameGeometry()
@@ -179,7 +174,6 @@ class ImageLabelerBase(QMainWindow):
             if widget_method:
                 widget.editingFinished.connect(widget_method)
         self.top_right_widgets['Add Label'][0].setPlaceholderText('Add Label')
-        self.right_widgets['Photo List'].clicked.connect(self.display_selection)
         self.right_widgets['Photo List'].selectionModel().currentChanged.connect(
             self.display_selection)
         for text, widget in self.right_widgets.items():
@@ -208,21 +202,16 @@ class ImageLabelerBase(QMainWindow):
         widget_list.addItem(item)
         widget_list.selectionModel().clear()
 
-    def get_existing_labels(self, image_dir, image_name):
-        txt_file = f'{image_name.split(".")[0]}.txt'
-        if txt_file in os.listdir(image_dir):
-            with open(txt_file) as labels:
-                for label in labels.readlines():
-                    self.add_to_list(label, self.right_widgets['Image Label List'])
-                    if image_name not in self.session_data:
-                        self.session_data[image_name] = []
-                        self.session_data[image_name].append(label)
-
     def display_selection(self):
+        ratios = []
+        self.right_widgets['Image Label List'].clear()
         self.current_image = self.get_current_selection('photo')
         self.left_widgets['Image'].switch_image(self.current_image)
-        image_dir, img_name = '/'.join(self.current_image.split('/')[:-1]), self.current_image.split('/')[-1]
-        self.get_existing_labels(image_dir, img_name)
+        image_dir, img_name = self.left_widgets['Image'].get_image_names()
+        for item in self.session_data.loc[self.session_data['Image'] == img_name].values:
+            self.add_to_list(f'{[[x for x in item]]}', self.right_widgets['Image Label List'])
+            ratios.append([x for x in item][3:])
+        self.left_widgets['Image'].draw_boxes(ratios)
 
     def upload_photos(self):
         file_dialog = QFileDialog()
@@ -231,7 +220,6 @@ class ImageLabelerBase(QMainWindow):
             image_dir, photo_name = '/'.join(file_name.split('/')[:-1]), file_name.split('/')[-1]
             self.add_to_list(photo_name, self.right_widgets['Photo List'])
             self.image_paths.append(file_name)
-            self.get_existing_labels(image_dir, photo_name)
 
     def upload_vid(self):
         pass
@@ -261,7 +249,12 @@ class ImageLabelerBase(QMainWindow):
         self.display_selection()
 
     def save_changes(self):
-        pass
+        dialog = QFileDialog()
+        location, _ = dialog.getSaveFileName(self, 'Save as')
+        if location.endswith('.csv'):
+            self.session_data.to_csv(location, index=False)
+        if location.endswith('.h5'):
+            self.session_data.to_hdf(location, 'session_data')
 
     @staticmethod
     def get_list_selections(widget_list):
@@ -287,6 +280,16 @@ class ImageLabelerBase(QMainWindow):
         self.delete_list_selections(checked_session_labels, self.right_widgets['Session Labels'])
         self.delete_list_selections(checked_image_labels, self.right_widgets['Image Label List'])
         self.delete_list_selections(checked_photos, self.right_widgets['Photo List'])
+
+    def upload_labels(self):
+        dialog = QFileDialog()
+        file_name, _ = dialog.getOpenFileName(self, 'Load labels')
+        if file_name.endswith('.csv'):
+            new_data = pd.read_csv(file_name)
+            self.session_data = pd.concat([self.session_data, new_data])
+        if file_name.endswith('.h5'):
+            new_data = pd.read_hdf(file_name)
+            self.session_data = pd.concat([self.session_data, new_data])
 
     def reset_labels(self):
         pass
