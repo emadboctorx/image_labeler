@@ -1,7 +1,7 @@
 from PyQt5.QtGui import QIcon, QPixmap, QPainter, QPen
 from PyQt5.QtWidgets import (QMainWindow, QApplication, QDesktopWidget, QAction, QStatusBar, QHBoxLayout,
                              QVBoxLayout, QWidget, QLabel, QListWidget, QFileDialog, QFrame,
-                             QLineEdit, QListWidgetItem, QDockWidget)
+                             QLineEdit, QListWidgetItem, QDockWidget, QMessageBox)
 from PyQt5.QtCore import Qt, QPoint, QRect
 from settings import *
 import pandas as pd
@@ -108,7 +108,7 @@ class ImageEditorArea(RegularImageArea):
         bx, by, bw, bh = self.calculate_ratios(x1, y1, x2, y2, window_width, window_height)
         data = [[self.get_image_names()[1], object_name, current_label_index, bx, by, bw, bh]]
         to_add = pd.DataFrame(data, columns=self.main_window.session_data.columns)
-        self.main_window.session_data = pd.concat([self.main_window.session_data, to_add])
+        self.main_window.session_data = pd.concat([self.main_window.session_data, to_add], ignore_index=True)
         self.main_window.add_to_list(f'{data}', self.main_window.right_widgets['Image Label List'])
 
 
@@ -116,6 +116,7 @@ class ImageLabelerBase(QMainWindow):
     def __init__(self, window_title='Image Labeler', current_image_area=RegularImageArea):
         super().__init__()
         self.current_image = None
+        self.label_file = None
         self.current_image_area = current_image_area
         self.image_paths = []
         self.session_data = pd.DataFrame(
@@ -206,6 +207,8 @@ class ImageLabelerBase(QMainWindow):
         ratios = []
         self.right_widgets['Image Label List'].clear()
         self.current_image = self.get_current_selection('photo')
+        if not self.current_image:
+            return
         self.left_widgets['Image'].switch_image(self.current_image)
         image_dir, img_name = self.left_widgets['Image'].get_image_names()
         for item in self.session_data.loc[self.session_data['Image'] == img_name].values:
@@ -249,12 +252,20 @@ class ImageLabelerBase(QMainWindow):
         self.display_selection()
 
     def save_changes(self):
-        dialog = QFileDialog()
-        location, _ = dialog.getSaveFileName(self, 'Save as')
-        if location.endswith('.csv'):
-            self.session_data.to_csv(location, index=False)
-        if location.endswith('.h5'):
-            self.session_data.to_hdf(location, 'session_data')
+        if self.label_file:
+            location = self.label_file
+            if location.endswith('.csv'):
+                self.session_data.to_csv(location, index=False, mode='a', header=False)
+            if location.endswith('.h5'):
+                self.session_data.to_hdf(location, 'session_data', index=False, mode='a', header=False)
+        else:
+            dialog = QFileDialog()
+            location, _ = dialog.getSaveFileName(self, 'Save as')
+            if location.endswith('.csv'):
+                self.session_data.to_csv(location, index=False)
+            if location.endswith('.h5'):
+                self.session_data.to_hdf(location, 'session_data')
+        self.statusBar().showMessage(f'Labels Saved to {location}')
 
     @staticmethod
     def get_list_selections(widget_list):
@@ -266,12 +277,16 @@ class ImageLabelerBase(QMainWindow):
     def delete_list_selections(self, checked_indexes, widget_list):
         if checked_indexes:
             for item in reversed(checked_indexes):
-                try:
-                    widget_list.takeItem(item)
-                    if widget_list is self.right_widgets['Photo List']:
-                        del self.image_paths[item]
-                except IndexError:
-                    print(f'Failed to delete {widget_list.item(item)}')
+                if widget_list is self.right_widgets['Photo List']:
+                    del self.image_paths[item]
+                if widget_list is self.right_widgets['Image Label List']:
+                    current_row = eval(f'{self.right_widgets["Image Label List"].item(item).text()}')[0]
+                    row_items = dict(zip(self.session_data.columns, current_row))
+                    current_boxes = self.session_data.loc[self.session_data['Image'] == current_row[0]]
+                    for index, box in current_boxes[['bx', 'by', 'bw', 'bh']].iterrows():
+                        if box['bx'] == row_items['bx'] and box['by'] == row_items['by']:
+                            self.session_data = self.session_data.drop(index)
+                widget_list.takeItem(item)
 
     def delete_selections(self):
         checked_session_labels = self.get_list_selections(self.right_widgets['Session Labels'])
@@ -284,15 +299,22 @@ class ImageLabelerBase(QMainWindow):
     def upload_labels(self):
         dialog = QFileDialog()
         file_name, _ = dialog.getOpenFileName(self, 'Load labels')
+        self.label_file = file_name
         if file_name.endswith('.csv'):
             new_data = pd.read_csv(file_name)
-            self.session_data = pd.concat([self.session_data, new_data])
+            self.session_data = pd.concat([self.session_data, new_data], ignore_index=True)
         if file_name.endswith('.h5'):
             new_data = pd.read_hdf(file_name)
-            self.session_data = pd.concat([self.session_data, new_data])
+            self.session_data = pd.concat([self.session_data, new_data], ignore_index=True)
+        self.statusBar().showMessage(f'Labels loaded from {file_name}')
 
     def reset_labels(self):
-        pass
+        message = QMessageBox()
+        answer = message.question(
+            self, 'Question', 'Are you sure, do you want to delete all current session labels?')
+        if answer == message.Yes:
+            self.session_data.drop(self.session_data.index, inplace=True)
+            self.statusBar().showMessage(f'Session labels deleted successfully')
 
     def display_settings(self):
         pass
