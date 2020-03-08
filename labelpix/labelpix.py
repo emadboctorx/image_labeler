@@ -11,17 +11,38 @@ import os
 
 
 class RegularImageArea(QLabel):
+    """
+    Display only area within the main interface.
+    """
     def __init__(self, current_image, main_window):
+        """
+        Initialize current image for display.
+        Args:
+            current_image: Path to target image.
+            main_window: ImageLabeler instance.
+        """
         super().__init__()
         self.setFrameStyle(QFrame.StyledPanel)
         self.current_image = current_image
         self.main_window = main_window
 
     def get_image_names(self):
+        """
+        Return:
+            Directory of the current image and the image name.
+        """
         full_name = self.current_image.split('/')
         return '/'.join(full_name[:-1]), full_name[-1].replace('temp-', '')
 
     def paintEvent(self, event):
+        """
+        Adjust image size to current window.
+        Args:
+            event: QPaintEvent object.
+
+        Return:
+            None
+        """
         painter = QPainter(self)
         current_size = self.size()
         origin = QPoint(0, 0)
@@ -31,11 +52,35 @@ class RegularImageArea(QLabel):
             painter.drawPixmap(origin, scaled_image)
 
     def switch_image(self, img):
+        """
+        Switch the current image displayed in the main window with the new one.
+        Args:
+            img: Path to new image to display.
+
+        Return:
+            None
+        """
         self.current_image = img
         self.repaint()
 
     @staticmethod
     def calculate_ratios(x1, y1, x2, y2, width, height):
+        """
+        Calculate relative object ratios in the labeled image.
+        Args:
+            x1: Start x coordinate.
+            y1: Start y coordinate.
+            x2: End x coordinate.
+            y2: End y coordinate.
+            width: Bounding box width.
+            height: Bounding box height.
+
+        Return:
+            bx: Relative center x coordinate.
+            by: Relative center y coordinate.
+            bw: Relative box width.
+            bh: Relative box height.
+        """
         box_width = abs(x2 - x1)
         box_height = abs(y2 - y1)
         bx = 1 - ((width - min(x1, x2) + (box_width / 2)) / width)
@@ -46,11 +91,35 @@ class RegularImageArea(QLabel):
 
     @staticmethod
     def ratios_to_coordinates(bx, by, bw, bh, width, height):
+        """
+        Convert relative coordinates to actual coordinates.
+        Args:
+            bx: Relative center x coordinate.
+            by: Relative center y coordinate.
+            bw: Relative box width.
+            bh: Relative box height.
+            width: Current image display space width.
+            height: Current image display space height.
+
+        Return:
+            x: x coordinate.
+            y: y coordinate.
+            w: Bounding box width.
+            h: Bounding box height.
+        """
         w, h = bw * width, bh * height
         x, y = bx * width + (w / 2), by * height + (h / 2)
         return x, y, w, h
 
     def draw_boxes(self, ratios):
+        """
+        Draw boxes over the current image using given ratios.
+        Args:
+            ratios: A list of [[bx, by, bw, bh], ...]
+
+        Return:
+            None
+        """
         img_dir, img_name = self.get_image_names()
         to_label = cv2.imread(self.current_image)
         to_label = cv2.resize(to_label, (self.width(), self.height()))
@@ -63,7 +132,16 @@ class RegularImageArea(QLabel):
 
 
 class ImageEditorArea(RegularImageArea):
+    """
+    Edit and display area within the main interface.
+    """
     def __init__(self, current_image, main_window):
+        """
+        Initialize current image for display.
+        Args:
+            current_image: Path to target image.
+            main_window: ImageLabeler instance.
+        """
         super().__init__(current_image, main_window)
         self.main_window = main_window
         self.start_point = QPoint()
@@ -72,6 +150,14 @@ class ImageEditorArea(RegularImageArea):
         self.end = QPoint()
 
     def paintEvent(self, event):
+        """
+        Adjust image size to current window and draw bounding box.
+        Args:
+            event: QPaintEvent object.
+
+        Return:
+            None
+        """
         super().paintEvent(event)
         qp = QPainter(self)
         pen = QPen(Qt.red)
@@ -79,16 +165,40 @@ class ImageEditorArea(RegularImageArea):
         qp.drawRect(QRect(self.begin, self.end))
 
     def mousePressEvent(self, event):
+        """
+        Start drawing the box.
+        Args:
+            event: QMouseEvent object.
+
+        Return:
+            None
+        """
         self.start_point = event.pos()
         self.begin = event.pos()
         self.end = event.pos()
         self.update()
 
     def mouseMoveEvent(self, event):
+        """
+        Update size with mouse move.
+        Args:
+            event: QMouseEvent object.
+
+        Return:
+            None
+        """
         self.end = event.pos()
         self.update()
 
     def mouseReleaseEvent(self, event):
+        """
+        Calculate coordinates of the bounding box, display a message, update session data.
+        Args:
+            event: QMouseEvent object.
+
+        Return:
+            None
+        """
         self.begin = event.pos()
         self.end = event.pos()
         self.end_point = event.pos()
@@ -100,6 +210,17 @@ class ImageEditorArea(RegularImageArea):
             self.update_session_data(x1, y1, x2, y2)
 
     def update_session_data(self, x1, y1, x2, y2):
+        """
+        Add a row to session_data containing calculated ratios.
+        Args:
+            x1: Start x coordinate.
+            y1: Start y coordinate.
+            x2: End x coordinate.
+            y2: End y coordinate.
+
+        Return:
+            None
+        """
         current_label_index = self.main_window.get_current_selection('slabels')
         if current_label_index is None or current_label_index < 0:
             return
@@ -112,8 +233,17 @@ class ImageEditorArea(RegularImageArea):
         self.main_window.add_to_list(f'{data}', self.main_window.right_widgets['Image Label List'])
 
 
-class ImageLabelerBase(QMainWindow):
+class ImageLabeler(QMainWindow):
+    """
+    Image labeling main interface.
+    """
     def __init__(self, window_title='Image Labeler', current_image_area=RegularImageArea):
+        """
+        Initialize main interface and display.
+        Args:
+            window_title: Title of the window.
+            current_image_area: RegularImageArea or ImageEditorArea object.
+        """
         super().__init__()
         self.current_image = None
         self.label_file = None
@@ -145,6 +275,12 @@ class ImageLabelerBase(QMainWindow):
         self.show()
 
     def adjust_tool_bar(self):
+        """
+        Adjust the top tool bar and setup buttons/icons.
+
+        Return:
+            None
+        """
         self.tools.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         if sys.platform == 'darwin':
             self.setUnifiedTitleAndToolBarOnMac(True)
@@ -161,11 +297,23 @@ class ImageLabelerBase(QMainWindow):
             self.tools.addSeparator()
 
     def adjust_layouts(self):
+        """
+        Adjust window layouts.
+
+        Return:
+            None
+        """
         self.main_layout.addLayout(self.left_layout)
         self.central_widget.setLayout(self.main_layout)
         self.setCentralWidget(self.central_widget)
 
     def adjust_widgets(self):
+        """
+        Adjust window widgets.
+
+        Return:
+            None
+        """
         self.left_layout.addWidget(self.left_widgets['Image'])
         for text, (widget, widget_method) in self.top_right_widgets.items():
             dock_widget = QDockWidget(text)
@@ -184,6 +332,14 @@ class ImageLabelerBase(QMainWindow):
             self.addDockWidget(Qt.RightDockWidgetArea, dock_widget)
 
     def get_current_selection(self, display_list):
+        """
+        Get current selected item data.
+        Args:
+            display_list: One of the right QWidgetList(s).
+
+        Return:
+            Image path or current row.
+        """
         if display_list == 'photo':
             current_selection = self.right_widgets['Photo List'].currentRow()
             if current_selection >= 0:
@@ -196,6 +352,15 @@ class ImageLabelerBase(QMainWindow):
 
     @staticmethod
     def add_to_list(item, widget_list):
+        """
+        Add item to one of the right QWidgetList(s).
+        Args:
+            item: str : Item to add.
+            widget_list: One of the right QWidgetList(s).
+
+        Return:
+            None
+        """
         item = QListWidgetItem(item)
         item.setFlags(item.flags() | Qt.ItemIsSelectable |
                       Qt.ItemIsUserCheckable | Qt.ItemIsEditable)
@@ -204,6 +369,12 @@ class ImageLabelerBase(QMainWindow):
         widget_list.selectionModel().clear()
 
     def display_selection(self):
+        """
+        Display image that is selected in the right Photo list.
+
+        Return:
+            None
+        """
         ratios = []
         self.right_widgets['Image Label List'].clear()
         self.current_image = self.get_current_selection('photo')
@@ -217,6 +388,12 @@ class ImageLabelerBase(QMainWindow):
         self.left_widgets['Image'].draw_boxes(ratios)
 
     def upload_photos(self):
+        """
+        Add image(s) to the right photo list.
+
+        Return:
+            None
+        """
         file_dialog = QFileDialog()
         file_names, _ = file_dialog.getOpenFileNames(self, 'Upload Photos')
         for file_name in file_names:
@@ -228,6 +405,12 @@ class ImageLabelerBase(QMainWindow):
         pass
 
     def upload_folder(self):
+        """
+        Add images of a folder to the right photo list.
+
+        Return:
+            None
+        """
         file_dialog = QFileDialog()
         folder_name = file_dialog.getExistingDirectory()
         if folder_name:
@@ -238,11 +421,25 @@ class ImageLabelerBase(QMainWindow):
                     self.image_paths.append(f'{folder_name}/{file_name}')
 
     def switch_editor(self, image_area):
+        """
+        Switch between the display/edit interfaces.
+        Args:
+            image_area: RegularImageArea or ImageEditorArea object.
+
+        Return:
+            None
+        """
         self.left_layout.removeWidget(self.left_widgets['Image'])
         self.left_widgets['Image'] = image_area(self.current_image, self)
         self.left_layout.addWidget(self.left_widgets['Image'])
 
     def edit_mode(self):
+        """
+        Switch between the display/edit interfaces.
+
+        Return:
+            None
+        """
         if self.windowTitle() == 'Image Labeler':
             self.setWindowTitle('Image Labeler(Editor Mode)')
             self.switch_editor(ImageEditorArea)
@@ -252,6 +449,12 @@ class ImageLabelerBase(QMainWindow):
         self.display_selection()
 
     def save_changes(self):
+        """
+        Save the data organized in self.session_data to new/existing csv or hdf format.
+
+        Return:
+            None
+        """
         if self.label_file:
             location = self.label_file
             if location.endswith('.csv'):
@@ -269,12 +472,29 @@ class ImageLabelerBase(QMainWindow):
 
     @staticmethod
     def get_list_selections(widget_list):
+        """
+        Get in-list index of checked items in the given QWidgetList.
+        Args:
+            widget_list: One of the right QWidgetList(s).
+
+        Return:
+            A list of checked indexes.
+        """
         items = [widget_list.item(i) for i in range(widget_list.count())]
         checked_indexes = [checked_index for checked_index, item in enumerate(items)
                            if item.checkState() == Qt.Checked]
         return checked_indexes
 
     def delete_list_selections(self, checked_indexes, widget_list):
+        """
+        Delete checked indexes in the given QWidgetList.
+        Args:
+            checked_indexes: A list of checked indexes.
+            widget_list: One of the right QWidgetList(s).
+
+        Return:
+            None
+        """
         if checked_indexes:
             for item in reversed(checked_indexes):
                 if widget_list is self.right_widgets['Photo List']:
@@ -289,6 +509,12 @@ class ImageLabelerBase(QMainWindow):
                 widget_list.takeItem(item)
 
     def delete_selections(self):
+        """
+        Delete all checked items in all 3 right QWidgetList(s).
+
+        Return:
+            None
+        """
         checked_session_labels = self.get_list_selections(self.right_widgets['Session Labels'])
         checked_image_labels = self.get_list_selections(self.right_widgets['Image Label List'])
         checked_photos = self.get_list_selections(self.right_widgets['Photo List'])
@@ -297,6 +523,12 @@ class ImageLabelerBase(QMainWindow):
         self.delete_list_selections(checked_photos, self.right_widgets['Photo List'])
 
     def upload_labels(self):
+        """
+        Upload labels from csv or hdf.
+
+        Return:
+            None
+        """
         dialog = QFileDialog()
         file_name, _ = dialog.getOpenFileName(self, 'Load labels')
         self.label_file = file_name
@@ -309,6 +541,12 @@ class ImageLabelerBase(QMainWindow):
         self.statusBar().showMessage(f'Labels loaded from {file_name}')
 
     def reset_labels(self):
+        """
+        Delete all labels in the current session_data.
+
+        Return:
+            None
+        """
         message = QMessageBox()
         answer = message.question(
             self, 'Question', 'Are you sure, do you want to delete all current session labels?')
@@ -323,6 +561,12 @@ class ImageLabelerBase(QMainWindow):
         pass
 
     def add_session_label(self):
+        """
+        Add label entered to the session labels list.
+
+        Return:
+            None
+        """
         labels = self.right_widgets['Session Labels']
         new_label = self.top_right_widgets['Add Label'][0].text()
         session_labels = [str(labels.item(i).text()) for i in range(labels.count())]
@@ -333,5 +577,5 @@ class ImageLabelerBase(QMainWindow):
 
 if __name__ == '__main__':
     test = QApplication(sys.argv)
-    test_window = ImageLabelerBase()
+    test_window = ImageLabeler()
     sys.exit(test.exec_())
