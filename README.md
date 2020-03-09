@@ -8,14 +8,39 @@
 
 > labelpix is a graphical image labeling interface for drawing bounding boxes.
 
-![Preview](https://github.com/emadboctorx/labelpix/blob/master/Icons/prev.png)
+![Preview](Icons/prev.png)
+
+### 🏠 [Homepage](https://github.com/emadboctorx/labelpix)
+
+## Install
+
+```sh
+pip install -r requirements.text
+```
 
 ## Usage
 
 ```sh
-
-python labelpix.py
+python3 labelpix.py
 ```
+
+## Features
+* Preview and edit interfaces.
+* Save bounding box relative coordinates to csv / hdf formats.
+* Save relative coordinates
+
+## Instructions
+
+* Upload photos.
+* Add labels to session labels.
+* Click on a photo from the photo list.
+* Click on the desired label from the labels you added.
+* Draw bounding boxes.
+* Switch photos by scrolling/clicking on images in the list.
+* Save data by entering filename_example.csv or filename_example.h5
+* You can also save to yolo formatted txt outputs.
+* For deleting any of the 3 right lists (session labels / Labels of the current image / Photo list) items, 
+check item and press the delete button  
 
 ## Author
 
@@ -25,7 +50,8 @@ python labelpix.py
 
 ## 🤝 Contributing
 
-Contributions, issues and feature requests are welcome!<br />Feel free to check [issues page](https://github.com/emadboctorx/labelpix/issues). 
+Contributions, issues and feature requests are welcome!<br />Feel free to check 
+[issues page](https://github.com/emadboctorx/labelpix/issues).
 
 ## Show your support
 
