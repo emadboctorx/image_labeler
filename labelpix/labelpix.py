@@ -448,26 +448,54 @@ class ImageLabeler(QMainWindow):
             self.switch_editor(RegularImageArea)
         self.display_selection()
 
+    def save_session_data(self, location):
+        """
+        Save session data to csv/hdf.
+        Args:
+            location: Path to save session data file.
+
+        Return:
+            None
+        """
+        if location.endswith('.csv'):
+            self.session_data.to_csv(location, index=False)
+        if location.endswith('h5'):
+            self.session_data.to_hdf(location, key='session_data', index=False)
+
+    def read_session_data(self, location):
+        """
+        Read session data from csv/hdf
+        Args:
+            location: Path to session data file.
+
+        Return:
+            data.
+        """
+        data = self.session_data
+        if location.endswith('.csv'):
+            data = pd.read_csv(location)
+        if location.endswith('.h5'):
+            data = pd.read_hdf(location, 'session_data')
+        return data
+
     def save_changes(self):
         """
-        Save the data organized in self.session_data to new/existing csv or hdf format.
+        Save the data organized in self.session_data to new/existing csv/hdf format.
 
         Return:
             None
         """
         if self.label_file:
             location = self.label_file
-            if location.endswith('.csv'):
-                self.session_data.to_csv(location, index=False, mode='a', header=False)
-            if location.endswith('.h5'):
-                self.session_data.to_hdf(location, 'session_data', index=False, mode='a', header=False)
+            old_session_data = self.read_session_data(location)
+            self.session_data = pd.concat([old_session_data, self.session_data], ignore_index=True)
+            self.session_data.drop_duplicates(inplace=True)
+            self.save_session_data(location)
         else:
             dialog = QFileDialog()
             location, _ = dialog.getSaveFileName(self, 'Save as')
-            if location.endswith('.csv'):
-                self.session_data.to_csv(location, index=False)
-            if location.endswith('.h5'):
-                self.session_data.to_hdf(location, 'session_data')
+            self.label_file = location
+            self.save_session_data(location)
         self.statusBar().showMessage(f'Labels Saved to {location}')
 
     @staticmethod
@@ -506,6 +534,7 @@ class ImageLabeler(QMainWindow):
                     for index, box in current_boxes[['bx', 'by', 'bw', 'bh']].iterrows():
                         if box['bx'] == row_items['bx'] and box['by'] == row_items['by']:
                             self.session_data = self.session_data.drop(index)
+                            break
                 widget_list.takeItem(item)
 
     def delete_selections(self):
@@ -532,13 +561,15 @@ class ImageLabeler(QMainWindow):
         dialog = QFileDialog()
         file_name, _ = dialog.getOpenFileName(self, 'Load labels')
         self.label_file = file_name
-        if file_name.endswith('.csv'):
-            new_data = pd.read_csv(file_name)
-            self.session_data = pd.concat([self.session_data, new_data], ignore_index=True)
-        if file_name.endswith('.h5'):
-            new_data = pd.read_hdf(file_name)
-            self.session_data = pd.concat([self.session_data, new_data], ignore_index=True)
-        self.statusBar().showMessage(f'Labels loaded from {file_name}')
+        new_data = self.read_session_data(file_name)
+        labels_to_add = new_data[['Object Name', 'Object Index']].drop_duplicates().sort_values(
+            by='Object Index').values
+        self.right_widgets['Session Labels'].clear()
+        for label, index in labels_to_add:
+            self.add_session_label(label)
+        self.session_data = pd.concat([self.session_data, new_data], ignore_index=True).drop_duplicates()
+        if file_name:
+            self.statusBar().showMessage(f'Labels loaded from {file_name}')
 
     def reset_labels(self):
         """
@@ -560,7 +591,7 @@ class ImageLabeler(QMainWindow):
     def display_help(self):
         pass
 
-    def add_session_label(self):
+    def add_session_label(self, label=None):
         """
         Add label entered to the session labels list.
 
@@ -568,7 +599,7 @@ class ImageLabeler(QMainWindow):
             None
         """
         labels = self.right_widgets['Session Labels']
-        new_label = self.top_right_widgets['Add Label'][0].text()
+        new_label = label or self.top_right_widgets['Add Label'][0].text()
         session_labels = [str(labels.item(i).text()) for i in range(labels.count())]
         if new_label and new_label not in session_labels:
             self.add_to_list(new_label, labels)
