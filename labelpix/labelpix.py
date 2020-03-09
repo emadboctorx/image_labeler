@@ -207,7 +207,12 @@ class ImageEditorArea(RegularImageArea):
         self.main_window.statusBar().showMessage(f'Start: {x1}, {y1}, End: {x2}, {y2}')
         self.update()
         if self.current_image:
+            bx, by, bw, bh = self.calculate_ratios(x1, y1, x2, y2, self.width(), self.height())
             self.update_session_data(x1, y1, x2, y2)
+            current_label_index = self.main_window.get_current_selection('slabels')
+            if current_label_index is None or current_label_index < 0:
+                return
+            self.draw_boxes([[bx, by, bw, bh]])
 
     def update_session_data(self, x1, y1, x2, y2):
         """
@@ -604,6 +609,38 @@ class ImageLabeler(QMainWindow):
         if new_label and new_label not in session_labels:
             self.add_to_list(new_label, labels)
             self.top_right_widgets['Add Label'][0].clear()
+
+    def remove_temps(self):
+        """
+        Remove temporary image files from working directories.
+
+        Return:
+            None
+        """
+        working_dirs = set(['/'.join(item.split('/')[:-1]) for item in self.image_paths])
+        for working_dir in working_dirs:
+            for file_name in os.listdir(working_dir):
+                if 'temp-' in file_name:
+                    os.remove(f'{working_dir}/{file_name}')
+
+    def closeEvent(self, event):
+        """
+        Save session data, clear cache, and close with or without saving.
+        Args:
+            event: QCloseEvent object.
+
+        Return:
+            None
+        """
+        if not self.label_file and not self.session_data.empty:
+            message = QMessageBox()
+            answer = message.question(self, 'Question', 'Quit without saving?')
+            if answer == message.No:
+                self.save_changes()
+        if self.label_file and not self.session_data.empty:
+            self.save_changes()
+        self.remove_temps()
+        event.accept()
 
 
 if __name__ == '__main__':
