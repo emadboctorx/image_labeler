@@ -242,7 +242,7 @@ class ImageLabeler(QMainWindow):
     """
     Image labeling main interface.
     """
-    def __init__(self, window_title='Image Labeler', current_image_area=RegularImageArea):
+    def __init__(self, window_title='labelpix', current_image_area=RegularImageArea):
         """
         Initialize main interface and display.
         Args:
@@ -448,11 +448,11 @@ class ImageLabeler(QMainWindow):
         Return:
             None
         """
-        if self.windowTitle() == 'Image Labeler':
-            self.setWindowTitle('Image Labeler(Editor Mode)')
+        if self.windowTitle() == 'labelpix':
+            self.setWindowTitle('labelpix(Editor Mode)')
             self.switch_editor(ImageEditorArea)
         else:
-            self.setWindowTitle('Image Labeler')
+            self.setWindowTitle('labelpix')
             self.switch_editor(RegularImageArea)
         self.display_selection()
 

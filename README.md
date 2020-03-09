@@ -27,7 +27,7 @@ python3 labelpix.py
 ## Features
 * Preview and edit interfaces.
 * Save bounding box relative coordinates to csv / hdf formats.
-* Save relative coordinates
+* Save relative object coordinates in yolo annotation.
 
 ## Instructions
 
