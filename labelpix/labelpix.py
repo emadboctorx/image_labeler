@@ -253,7 +253,8 @@ class ImageLabeler(QMainWindow):
         self.current_image = None
         self.label_file = None
         self.current_image_area = current_image_area
-        self.image_paths = []
+        self.images = []
+        self.image_paths = {}
         self.session_data = pd.DataFrame(
             columns=['Image', 'Object Name', 'Object Index', 'bx', 'by', 'bw', 'bh'])
         self.window_title = window_title
@@ -348,7 +349,7 @@ class ImageLabeler(QMainWindow):
         if display_list == 'photo':
             current_selection = self.right_widgets['Photo List'].currentRow()
             if current_selection >= 0:
-                return self.image_paths[current_selection]
+                return self.images[current_selection]
             self.right_widgets['Photo List'].selectionModel().clear()
         if display_list == 'slabels':
             current_selection = self.right_widgets['Session Labels'].currentRow()
@@ -404,7 +405,8 @@ class ImageLabeler(QMainWindow):
         for file_name in file_names:
             image_dir, photo_name = '/'.join(file_name.split('/')[:-1]), file_name.split('/')[-1]
             self.add_to_list(photo_name, self.right_widgets['Photo List'])
-            self.image_paths.append(file_name)
+            self.images.append(file_name)
+            self.image_paths[photo_name] = image_dir
 
     def upload_vid(self):
         pass
@@ -423,7 +425,8 @@ class ImageLabeler(QMainWindow):
                 if not file_name.startswith('.'):
                     photo_name = file_name.split('/')[-1]
                     self.add_to_list(photo_name, self.right_widgets['Photo List'])
-                    self.image_paths.append(f'{folder_name}/{file_name}')
+                    self.images.append(f'{folder_name}/{file_name}')
+                    self.image_paths[file_name] = folder_name
 
     def switch_editor(self, image_area):
         """
@@ -483,9 +486,9 @@ class ImageLabeler(QMainWindow):
             data = pd.read_hdf(location, 'session_data')
         return data
 
-    def save_changes(self):
+    def save_changes_table(self):
         """
-        Save the data organized in self.session_data to new/existing csv/hdf format.
+        Save the data in self.session_data to new/existing csv/hdf format.
 
         Return:
             None
@@ -502,6 +505,39 @@ class ImageLabeler(QMainWindow):
             self.label_file = location
             self.save_session_data(location)
         self.statusBar().showMessage(f'Labels Saved to {location}')
+
+    def clear_yolo_txt(self):
+        """
+        Delete txt files in working directories.
+
+        Return:
+            None
+        """
+        working_directories = set(['/'.join(item.split('/')[:-1]) for item in self.images])
+        for working_directory in working_directories:
+            for file_name in os.listdir(working_directory):
+                if file_name.endswith('.txt'):
+                    os.remove(f'{working_directory}/{file_name}')
+
+    def save_changes_yolo(self):
+        """
+        Save session data to txt files in yolo format.
+
+        Return:
+            None
+        """
+        if self.session_data.empty:
+            return
+        self.clear_yolo_txt()
+        txt_file_names = set()
+        for index, data in self.session_data.iterrows():
+            image_name, object_name, object_index, bx, by, bw, bh = data
+            image_path = self.image_paths[image_name]
+            txt_file_name = f'{image_path}/{image_name.split(".")[0]}.txt'
+            txt_file_names.add(txt_file_name)
+            with open(txt_file_name, 'a') as txt:
+                txt.write(f'{object_index!s} {bx!s} {by!s} {bw!s} {bh!s}\n')
+            self.statusBar().showMessage(f'Saved {len(txt_file_names)} txt files')
 
     @staticmethod
     def get_list_selections(widget_list):
@@ -529,18 +565,20 @@ class ImageLabeler(QMainWindow):
             None
         """
         if checked_indexes:
-            for item in reversed(checked_indexes):
+            for q_list_index in reversed(checked_indexes):
                 if widget_list is self.right_widgets['Photo List']:
-                    del self.image_paths[item]
+                    image_name = self.images[q_list_index].split('/')[-1]
+                    del self.images[q_list_index]
+                    del self.image_paths[image_name]
                 if widget_list is self.right_widgets['Image Label List']:
-                    current_row = eval(f'{self.right_widgets["Image Label List"].item(item).text()}')[0]
+                    current_row = eval(f'{self.right_widgets["Image Label List"].item(q_list_index).text()}')[0]
                     row_items = dict(zip(self.session_data.columns, current_row))
                     current_boxes = self.session_data.loc[self.session_data['Image'] == current_row[0]]
                     for index, box in current_boxes[['bx', 'by', 'bw', 'bh']].iterrows():
                         if box['bx'] == row_items['bx'] and box['by'] == row_items['by']:
                             self.session_data = self.session_data.drop(index)
                             break
-                widget_list.takeItem(item)
+                widget_list.takeItem(q_list_index)
 
     def delete_selections(self):
         """
@@ -617,7 +655,7 @@ class ImageLabeler(QMainWindow):
         Return:
             None
         """
-        working_dirs = set(['/'.join(item.split('/')[:-1]) for item in self.image_paths])
+        working_dirs = set(['/'.join(item.split('/')[:-1]) for item in self.images])
         for working_dir in working_dirs:
             for file_name in os.listdir(working_dir):
                 if 'temp-' in file_name:
@@ -636,9 +674,9 @@ class ImageLabeler(QMainWindow):
             message = QMessageBox()
             answer = message.question(self, 'Question', 'Quit without saving?')
             if answer == message.No:
-                self.save_changes()
+                self.save_changes_table()
         if self.label_file and not self.session_data.empty:
-            self.save_changes()
+            self.save_changes_table()
         self.remove_temps()
         event.accept()
 
