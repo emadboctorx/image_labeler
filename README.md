@@ -32,7 +32,7 @@ python3 labelpix.py
 ## Instructions
 
 * Upload photos.
-* Add labels to session labels.
+* Add labels to session labels(ex: Dog, Car ...)
 * Click on a photo from the photo list.
 * Click on the desired label from the labels you added.
 * Draw bounding boxes.

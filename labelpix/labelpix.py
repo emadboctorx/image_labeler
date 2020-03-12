@@ -48,7 +48,7 @@ class RegularImageArea(QLabel):
         origin = QPoint(0, 0)
         if self.current_image:
             scaled_image = QPixmap(self.current_image).scaled(
-                current_size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+                current_size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation) 
             painter.drawPixmap(origin, scaled_image)
 
     def switch_image(self, img):
@@ -125,7 +125,7 @@ class RegularImageArea(QLabel):
         to_label = cv2.resize(to_label, (self.width(), self.height()))
         for bx, by, bw, bh in ratios:
             x, y, w, h = self.ratios_to_coordinates(bx, by, bw, bh, self.width(), self.height())
-            to_label = cv2.rectangle(to_label, (int(x), int(y)), (int(x + w), int(y + h)), (0, 0, 255), 1)
+            to_label = cv2.rectangle(to_label, (int(x), int(y)), (int(x + w), int(y + h)), (255, 0, 0), 2)
         temp = f'{img_dir}/temp-{img_name}'
         cv2.imwrite(f'{img_dir}/temp-{img_name}', to_label)
         self.switch_image(temp)
@@ -160,7 +160,8 @@ class ImageEditorArea(RegularImageArea):
         """
         super().paintEvent(event)
         qp = QPainter(self)
-        pen = QPen(Qt.red)
+        pen = QPen(Qt.blue)
+        pen.setWidth(2)
         qp.setPen(pen)
         qp.drawRect(QRect(self.begin, self.end))
 
