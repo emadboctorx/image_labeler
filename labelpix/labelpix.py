@@ -3,8 +3,13 @@ from PyQt5.QtWidgets import (QMainWindow, QApplication, QDesktopWidget, QAction,
                              QVBoxLayout, QWidget, QLabel, QListWidget, QFileDialog, QFrame,
                              QLineEdit, QListWidgetItem, QDockWidget, QMessageBox)
 from PyQt5.QtCore import Qt, QPoint, QRect
+from xml.etree.ElementTree import Element, SubElement
+from xml.etree import ElementTree
+from lxml import etree
 from settings import *
+import numpy as np
 import pandas as pd
+import imagesize
 import cv2
 import sys
 import os
@@ -494,17 +499,10 @@ class ImageLabeler(QMainWindow):
         Return:
             None
         """
-        if self.label_file:
-            location = self.label_file
-            old_session_data = self.read_session_data(location)
-            self.session_data = pd.concat([old_session_data, self.session_data], ignore_index=True)
-            self.session_data.drop_duplicates(inplace=True)
-            self.save_session_data(location)
-        else:
-            dialog = QFileDialog()
-            location, _ = dialog.getSaveFileName(self, 'Save as')
-            self.label_file = location
-            self.save_session_data(location)
+        dialog = QFileDialog()
+        location, _ = dialog.getSaveFileName(self, 'Save as')
+        self.label_file = location
+        self.save_session_data(location)
         self.statusBar().showMessage(f'Labels Saved to {location}')
 
     def clear_yolo_txt(self):
@@ -539,6 +537,78 @@ class ImageLabeler(QMainWindow):
             with open(txt_file_name, 'a') as txt:
                 txt.write(f'{object_index!s} {bx!s} {by!s} {bw!s} {bh!s}\n')
             self.statusBar().showMessage(f'Saved {len(txt_file_names)} txt files')
+
+    @staticmethod
+    def generate_xml_file(full_path, image_size, obj_data, out_file):
+        """
+        Generate XML label file.
+        Args:
+            full_path: Path to image.
+            image_size: Size of the image.
+            obj_data: object coordinates and object name
+            out_file: output xml file.
+
+        Return:
+            None
+        """
+        path_contents = os.path.split(full_path)
+        folder_name, file_name = path_contents[-2], path_contents[-1]
+        w, h = image_size
+        top = Element('annotation')
+        folder = SubElement(top, 'folder')
+        folder.text = folder_name
+        image_name = SubElement(top, 'filename')
+        image_name.text = file_name
+        path_item = SubElement(top, 'path')
+        path_item.text = full_path
+        size = SubElement(top, 'size')
+        width = SubElement(size, 'width')
+        width.text = f'{w}'
+        height = SubElement(size, 'height')
+        height.text = f'{h}'
+        depth = SubElement(size, 'depth')
+        depth.text = f'{3}'
+        for item in obj_data:
+            x_min, y_min, x_max, y_max, object_name = item
+            object_item = SubElement(top, 'object')
+            name = SubElement(object_item, 'name')
+            name.text = object_name
+            box = SubElement(object_item, 'bndbox')
+            x0 = SubElement(box, 'xmin')
+            x0.text = f'{x_min}'
+            y0 = SubElement(box, 'ymin')
+            y0.text = f'{y_min}'
+            x1 = SubElement(box, 'xmax')
+            x1.text = f'{x_max}'
+            y1 = SubElement(box, 'ymax')
+            y1.text = f'{y_max}'
+        rough_string = ElementTree.tostring(top, 'utf8')
+        root = etree.fromstring(rough_string)
+        pretty = etree.tostring(
+            root, pretty_print=True, encoding='utf-8').replace("  ".encode(), "\t".encode())
+        with open(out_file, 'wb') as output:
+            output.write(pretty)
+
+    def save_changes_voc(self):
+        """
+        Save session data to xml voc format.
+
+        Return:
+            None
+        """
+        groups = self.session_data.groupby('Image').apply(np.array)
+        for image, objects in groups.iteritems():
+            image_path = self.image_paths[image]
+            image_size = imagesize.get(os.path.join(image_path, image))
+            obj_data = []
+            for box in objects:
+                img, object_name, object_index, bx, by, bw, bh = box
+                x, y, w, h = self.left_widgets['Image'].ratios_to_coordinates(bx, by, bw, bh, *image_size)
+                obj_data.append([x, y, x + w, y + h, object_name])
+            out = os.path.join(image_path, f'{image.split(".")[0]}.xml')
+            full_path = os.path.join(image_path, image)
+            self.generate_xml_file(full_path, image_size, obj_data, out)
+            obj_data.clear()
 
     @staticmethod
     def get_list_selections(widget_list):
@@ -671,13 +741,6 @@ class ImageLabeler(QMainWindow):
         Return:
             None
         """
-        if not self.label_file and not self.session_data.empty:
-            message = QMessageBox()
-            answer = message.question(self, 'Question', 'Quit without saving?')
-            if answer == message.No:
-                self.save_changes_table()
-        if self.label_file and not self.session_data.empty:
-            self.save_changes_table()
         self.remove_temps()
         event.accept()
 
