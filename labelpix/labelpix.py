@@ -1,7 +1,22 @@
 from PyQt5.QtGui import QIcon, QPixmap, QPainter, QPen
-from PyQt5.QtWidgets import (QMainWindow, QApplication, QDesktopWidget, QAction, QStatusBar, QHBoxLayout,
-                             QVBoxLayout, QWidget, QLabel, QListWidget, QFileDialog, QFrame,
-                             QLineEdit, QListWidgetItem, QDockWidget, QMessageBox)
+from PyQt5.QtWidgets import (
+    QMainWindow,
+    QApplication,
+    QDesktopWidget,
+    QAction,
+    QStatusBar,
+    QHBoxLayout,
+    QVBoxLayout,
+    QWidget,
+    QLabel,
+    QListWidget,
+    QFileDialog,
+    QFrame,
+    QLineEdit,
+    QListWidgetItem,
+    QDockWidget,
+    QMessageBox,
+)
 from PyQt5.QtCore import Qt, QPoint, QRect
 from xml.etree.ElementTree import Element, SubElement
 from xml.etree import ElementTree
@@ -19,6 +34,7 @@ class RegularImageArea(QLabel):
     """
     Display only area within the main interface.
     """
+
     def __init__(self, current_image, main_window):
         """
         Initialize current image for display.
@@ -53,7 +69,8 @@ class RegularImageArea(QLabel):
         origin = QPoint(0, 0)
         if self.current_image:
             scaled_image = QPixmap(self.current_image).scaled(
-                current_size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation) 
+                current_size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation
+            )
             painter.drawPixmap(origin, scaled_image)
 
     def switch_image(self, img):
@@ -129,8 +146,12 @@ class RegularImageArea(QLabel):
         to_label = cv2.imread(self.current_image)
         to_label = cv2.resize(to_label, (self.width(), self.height()))
         for bx, by, bw, bh in ratios:
-            x, y, w, h = self.ratios_to_coordinates(bx, by, bw, bh, self.width(), self.height())
-            to_label = cv2.rectangle(to_label, (int(x), int(y)), (int(x + w), int(y + h)), (255, 0, 0), 2)
+            x, y, w, h = self.ratios_to_coordinates(
+                bx, by, bw, bh, self.width(), self.height()
+            )
+            to_label = cv2.rectangle(
+                to_label, (int(x), int(y)), (int(x + w), int(y + h)), (255, 0, 0), 2
+            )
         temp = f'{img_dir}/temp-{img_name}'
         cv2.imwrite(f'{img_dir}/temp-{img_name}', to_label)
         self.switch_image(temp)
@@ -140,6 +161,7 @@ class ImageEditorArea(RegularImageArea):
     """
     Edit and display area within the main interface.
     """
+
     def __init__(self, current_image, main_window):
         """
         Initialize current image for display.
@@ -208,12 +230,18 @@ class ImageEditorArea(RegularImageArea):
         self.begin = event.pos()
         self.end = event.pos()
         self.end_point = event.pos()
-        x1, y1, x2, y2 = (self.start_point.x(), self.start_point.y(),
-                          self.end_point.x(), self.end_point.y())
+        x1, y1, x2, y2 = (
+            self.start_point.x(),
+            self.start_point.y(),
+            self.end_point.x(),
+            self.end_point.y(),
+        )
         self.main_window.statusBar().showMessage(f'Start: {x1}, {y1}, End: {x2}, {y2}')
         self.update()
         if self.current_image:
-            bx, by, bw, bh = self.calculate_ratios(x1, y1, x2, y2, self.width(), self.height())
+            bx, by, bw, bh = self.calculate_ratios(
+                x1, y1, x2, y2, self.width(), self.height()
+            )
             self.update_session_data(x1, y1, x2, y2)
             current_label_index = self.main_window.get_current_selection('slabels')
             if current_label_index is None or current_label_index < 0:
@@ -236,18 +264,39 @@ class ImageEditorArea(RegularImageArea):
         if current_label_index is None or current_label_index < 0:
             return
         window_width, window_height = self.width(), self.height()
-        object_name = self.main_window.right_widgets['Session Labels'].item(current_label_index).text()
-        bx, by, bw, bh = self.calculate_ratios(x1, y1, x2, y2, window_width, window_height)
-        data = [[self.get_image_names()[1], object_name, current_label_index, bx, by, bw, bh]]
+        object_name = (
+            self.main_window.right_widgets['Session Labels']
+            .item(current_label_index)
+            .text()
+        )
+        bx, by, bw, bh = self.calculate_ratios(
+            x1, y1, x2, y2, window_width, window_height
+        )
+        data = [
+            [
+                self.get_image_names()[1],
+                object_name,
+                current_label_index,
+                bx,
+                by,
+                bw,
+                bh,
+            ]
+        ]
         to_add = pd.DataFrame(data, columns=self.main_window.session_data.columns)
-        self.main_window.session_data = pd.concat([self.main_window.session_data, to_add], ignore_index=True)
-        self.main_window.add_to_list(f'{data}', self.main_window.right_widgets['Image Label List'])
+        self.main_window.session_data = pd.concat(
+            [self.main_window.session_data, to_add], ignore_index=True
+        )
+        self.main_window.add_to_list(
+            f'{data}', self.main_window.right_widgets['Image Label List']
+        )
 
 
 class ImageLabeler(QMainWindow):
     """
     Image labeling main interface.
     """
+
     def __init__(self, window_title='labelpix', current_image_area=RegularImageArea):
         """
         Initialize main interface and display.
@@ -262,20 +311,25 @@ class ImageLabeler(QMainWindow):
         self.images = []
         self.image_paths = {}
         self.session_data = pd.DataFrame(
-            columns=['Image', 'Object Name', 'Object Index', 'bx', 'by', 'bw', 'bh'])
+            columns=['Image', 'Object Name', 'Object Index', 'bx', 'by', 'bw', 'bh']
+        )
         self.window_title = window_title
         self.setWindowTitle(self.window_title)
         win_rectangle = self.frameGeometry()
         center_point = QDesktopWidget().availableGeometry().center()
         win_rectangle.moveCenter(center_point)
         self.move(win_rectangle.topLeft())
-        self.setStyleSheet('QPushButton:!hover {color: orange} QLineEdit:!hover {color: orange}')
+        self.setStyleSheet(
+            'QPushButton:!hover {color: orange} QLineEdit:!hover {color: orange}'
+        )
         self.tools = self.addToolBar('Tools')
         self.tool_items = setup_toolbar(self)
         self.top_right_widgets = {'Add Label': (QLineEdit(), self.add_session_label)}
-        self.right_widgets = {'Session Labels': QListWidget(),
-                              'Image Label List': QListWidget(),
-                              'Photo List': QListWidget()}
+        self.right_widgets = {
+            'Session Labels': QListWidget(),
+            'Image Label List': QListWidget(),
+            'Photo List': QListWidget(),
+        }
         self.left_widgets = {'Image': self.current_image_area('', self)}
         self.setStatusBar(QStatusBar(self))
         self.adjust_tool_bar()
@@ -296,7 +350,14 @@ class ImageLabeler(QMainWindow):
         self.tools.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         if sys.platform == 'darwin':
             self.setUnifiedTitleAndToolBarOnMac(True)
-        for label, icon_file, widget_method, status_tip, key, check in self.tool_items.values():
+        for (
+            label,
+            icon_file,
+            widget_method,
+            status_tip,
+            key,
+            check,
+        ) in self.tool_items.values():
             action = QAction(QIcon(f'../Icons/{icon_file}'), label, self)
             action.setStatusTip(status_tip)
             action.setShortcut(key)
@@ -336,7 +397,8 @@ class ImageLabeler(QMainWindow):
                 widget.editingFinished.connect(widget_method)
         self.top_right_widgets['Add Label'][0].setPlaceholderText('Add Label')
         self.right_widgets['Photo List'].selectionModel().currentChanged.connect(
-            self.display_selection)
+            self.display_selection
+        )
         for text, widget in self.right_widgets.items():
             dock_widget = QDockWidget(text)
             dock_widget.setFeatures(QDockWidget.NoDockWidgetFeatures)
@@ -374,8 +436,12 @@ class ImageLabeler(QMainWindow):
             None
         """
         item = QListWidgetItem(item)
-        item.setFlags(item.flags() | Qt.ItemIsSelectable |
-                      Qt.ItemIsUserCheckable | Qt.ItemIsEditable)
+        item.setFlags(
+            item.flags()
+            | Qt.ItemIsSelectable
+            | Qt.ItemIsUserCheckable
+            | Qt.ItemIsEditable
+        )
         item.setCheckState(Qt.Unchecked)
         widget_list.addItem(item)
         widget_list.selectionModel().clear()
@@ -394,8 +460,12 @@ class ImageLabeler(QMainWindow):
             return
         self.left_widgets['Image'].switch_image(self.current_image)
         image_dir, img_name = self.left_widgets['Image'].get_image_names()
-        for item in self.session_data.loc[self.session_data['Image'] == img_name].values:
-            self.add_to_list(f'{[[x for x in item]]}', self.right_widgets['Image Label List'])
+        for item in self.session_data.loc[
+            self.session_data['Image'] == img_name
+        ].values:
+            self.add_to_list(
+                f'{[[x for x in item]]}', self.right_widgets['Image Label List']
+            )
             ratios.append([x for x in item][3:])
         self.left_widgets['Image'].draw_boxes(ratios)
 
@@ -409,7 +479,10 @@ class ImageLabeler(QMainWindow):
         file_dialog = QFileDialog()
         file_names, _ = file_dialog.getOpenFileNames(self, 'Upload Photos')
         for file_name in file_names:
-            image_dir, photo_name = '/'.join(file_name.split('/')[:-1]), file_name.split('/')[-1]
+            image_dir, photo_name = (
+                '/'.join(file_name.split('/')[:-1]),
+                file_name.split('/')[-1],
+            )
             self.add_to_list(photo_name, self.right_widgets['Photo List'])
             self.images.append(file_name)
             self.image_paths[photo_name] = image_dir
@@ -512,7 +585,9 @@ class ImageLabeler(QMainWindow):
         Return:
             None
         """
-        working_directories = set(['/'.join(item.split('/')[:-1]) for item in self.images])
+        working_directories = set(
+            ['/'.join(item.split('/')[:-1]) for item in self.images]
+        )
         for working_directory in working_directories:
             for file_name in os.listdir(working_directory):
                 if file_name.endswith('.txt'):
@@ -584,8 +659,9 @@ class ImageLabeler(QMainWindow):
             y1.text = f'{y_max}'
         rough_string = ElementTree.tostring(top, 'utf8')
         root = etree.fromstring(rough_string)
-        pretty = etree.tostring(
-            root, pretty_print=True, encoding='utf-8').replace("  ".encode(), "\t".encode())
+        pretty = etree.tostring(root, pretty_print=True, encoding='utf-8').replace(
+            "  ".encode(), "\t".encode()
+        )
         with open(out_file, 'wb') as output:
             output.write(pretty)
 
@@ -603,7 +679,9 @@ class ImageLabeler(QMainWindow):
             obj_data = []
             for box in objects:
                 img, object_name, object_index, bx, by, bw, bh = box
-                x, y, w, h = self.left_widgets['Image'].ratios_to_coordinates(bx, by, bw, bh, *image_size)
+                x, y, w, h = self.left_widgets['Image'].ratios_to_coordinates(
+                    bx, by, bw, bh, *image_size
+                )
                 obj_data.append([x, y, x + w, y + h, object_name])
             out = os.path.join(image_path, f'{image.split(".")[0]}.xml')
             full_path = os.path.join(image_path, image)
@@ -621,8 +699,11 @@ class ImageLabeler(QMainWindow):
             A list of checked indexes.
         """
         items = [widget_list.item(i) for i in range(widget_list.count())]
-        checked_indexes = [checked_index for checked_index, item in enumerate(items)
-                           if item.checkState() == Qt.Checked]
+        checked_indexes = [
+            checked_index
+            for checked_index, item in enumerate(items)
+            if item.checkState() == Qt.Checked
+        ]
         return checked_indexes
 
     def delete_list_selections(self, checked_indexes, widget_list):
@@ -642,11 +723,20 @@ class ImageLabeler(QMainWindow):
                     del self.images[q_list_index]
                     del self.image_paths[image_name]
                 if widget_list is self.right_widgets['Image Label List']:
-                    current_row = eval(f'{self.right_widgets["Image Label List"].item(q_list_index).text()}')[0]
+                    current_row = eval(
+                        f'{self.right_widgets["Image Label List"].item(q_list_index).text()}'
+                    )[0]
                     row_items = dict(zip(self.session_data.columns, current_row))
-                    current_boxes = self.session_data.loc[self.session_data['Image'] == current_row[0]]
-                    for index, box in current_boxes[['bx', 'by', 'bw', 'bh']].iterrows():
-                        if box['bx'] == row_items['bx'] and box['by'] == row_items['by']:
+                    current_boxes = self.session_data.loc[
+                        self.session_data['Image'] == current_row[0]
+                    ]
+                    for index, box in current_boxes[
+                        ['bx', 'by', 'bw', 'bh']
+                    ].iterrows():
+                        if (
+                            box['bx'] == row_items['bx']
+                            and box['by'] == row_items['by']
+                        ):
                             self.session_data = self.session_data.drop(index)
                             break
                 widget_list.takeItem(q_list_index)
@@ -658,11 +748,19 @@ class ImageLabeler(QMainWindow):
         Return:
             None
         """
-        checked_session_labels = self.get_list_selections(self.right_widgets['Session Labels'])
-        checked_image_labels = self.get_list_selections(self.right_widgets['Image Label List'])
+        checked_session_labels = self.get_list_selections(
+            self.right_widgets['Session Labels']
+        )
+        checked_image_labels = self.get_list_selections(
+            self.right_widgets['Image Label List']
+        )
         checked_photos = self.get_list_selections(self.right_widgets['Photo List'])
-        self.delete_list_selections(checked_session_labels, self.right_widgets['Session Labels'])
-        self.delete_list_selections(checked_image_labels, self.right_widgets['Image Label List'])
+        self.delete_list_selections(
+            checked_session_labels, self.right_widgets['Session Labels']
+        )
+        self.delete_list_selections(
+            checked_image_labels, self.right_widgets['Image Label List']
+        )
         self.delete_list_selections(checked_photos, self.right_widgets['Photo List'])
 
     def upload_labels(self):
@@ -676,12 +774,18 @@ class ImageLabeler(QMainWindow):
         file_name, _ = dialog.getOpenFileName(self, 'Load labels')
         self.label_file = file_name
         new_data = self.read_session_data(file_name)
-        labels_to_add = new_data[['Object Name', 'Object Index']].drop_duplicates().sort_values(
-            by='Object Index').values
+        labels_to_add = (
+            new_data[['Object Name', 'Object Index']]
+            .drop_duplicates()
+            .sort_values(by='Object Index')
+            .values
+        )
         self.right_widgets['Session Labels'].clear()
         for label, index in labels_to_add:
             self.add_session_label(label)
-        self.session_data = pd.concat([self.session_data, new_data], ignore_index=True).drop_duplicates()
+        self.session_data = pd.concat(
+            [self.session_data, new_data], ignore_index=True
+        ).drop_duplicates()
         if file_name:
             self.statusBar().showMessage(f'Labels loaded from {file_name}')
 
@@ -694,7 +798,10 @@ class ImageLabeler(QMainWindow):
         """
         message = QMessageBox()
         answer = message.question(
-            self, 'Question', 'Are you sure, do you want to delete all current session labels?')
+            self,
+            'Question',
+            'Are you sure, do you want to delete all current session labels?',
+        )
         if answer == message.Yes:
             self.session_data.drop(self.session_data.index, inplace=True)
             self.statusBar().showMessage(f'Session labels deleted successfully')
